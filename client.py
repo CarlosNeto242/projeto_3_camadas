@@ -13,7 +13,6 @@ from math import *
 
 serialName = "COM5"
 
-
 def main():
     try:
         print("Iniciou o main")
