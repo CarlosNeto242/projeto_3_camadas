@@ -5,3 +5,4 @@ def build_header(h0=0, h1=0, h2=0, h3=0, h4=0, h5=0, h6=0, h7=0, h8=0, h9=0):
     for i in range(10):
         lista[i] = int.to_bytes(lista[i])
     return ''.join(lista)
+variavel = 3
