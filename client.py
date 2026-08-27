@@ -11,6 +11,8 @@ import numpy as np
 import struct 
 from math import *
 
+from utils import build_header
+
 serialName = "COM5"
 
 def main():
@@ -25,7 +27,7 @@ def main():
         time.sleep(1)
         print("bit de sacrifício enviado")
         # enviar mensagem perguntando quais arquivos estão disponíveis
-        
+        header = build_header(1,)
         # aguardar 
         
 
