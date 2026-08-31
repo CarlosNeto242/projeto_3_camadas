@@ -5,7 +5,6 @@ import time
 import os
 
 serialName = "COM5"
-
 pasta_cliente = "arquivos_client"
 
 # FUNÇÕES AUXILIARES
@@ -42,7 +41,11 @@ def main():
         com1 = enlace(serialName)
         com1.enable()
         print("Comunicação serial aberta.")
+        # bit de sacrifício
+        time.sleep(.2)
+        com1.sendData(b'00')
         time.sleep(1)
+        print("bit de sacrifício enviado")
         com1.rx.clearBuffer()
         print("----------------------------------------")
         print("Enviando HANDSHAKE ao servidor...")
@@ -158,7 +161,8 @@ def main():
                 "name": selected_files[i],
                 "data": b'',
                 "received_packets": 0,
-                "total_packets": 0
+                "total_packets": 0,
+                "last_packet": 0    
             }
             received_files.append(file_info)
 
@@ -185,9 +189,16 @@ def main():
                 print("Pacote:", packet_number, "de", total_packets)
                 print("Payload:", payload_size, "bytes")
                 # GUARDA OS DADOS
-                file_info["data"] += payload
-                file_info["received_packets"] += 1
-                file_info["total_packets"] = total_packets
+                # VERIFICA SE É UM PACOTE NOVO
+                if packet_number > file_info["last_packet"]:
+                    file_info["data"] += payload
+                    file_info["received_packets"] += 1
+                    file_info["total_packets"] = total_packets
+                    file_info["last_packet"] = packet_number
+                    print('Pacote novo recebido.')
+                else:
+                    print('Pacote duplicado recebido.')
+                    print('Os dados não serão adicionados novamente.')
                 # ENVIA ACK
                 ack_packet = build_packet(msg_type=ACK, file_id=file_id, ack_number=packet_number)
                 send_packet(com1, ack_packet)
@@ -252,13 +263,10 @@ def main():
         com1.disable()
 
     except Exception as erro:
-
         print()
         print("Ops! Ocorreu um erro no cliente.")
         print(erro)
-
         com1.disable()
-
 
 if __name__ == "__main__":
     main()

@@ -1,54 +1,63 @@
-#####################################################
-# Camada Física da Computação
-# Projeto 3 - Server
-#####################################################
-
 from enlace import *
 from utils import *
 
 import time
 import os
 
-
-# ---------------------------------------------------
-# CONFIGURAÇÕES
-# ---------------------------------------------------
 serialName = "COM3"
-SERVER_FOLDER = "img"
+SERVER_FOLDER = "arquivos_server"
+TIMEOUT = 2
+MAX_RETRIES = 5
 
-
-# ---------------------------------------------------
 # FUNÇÕES AUXILIARES
-# ---------------------------------------------------
-def send_packet(com1, packet):
-    com1.sendData(packet)
-    while com1.tx.getIsBussy():
-        time.sleep(0.05)
 
 def receive_packet(com1):
     header = com1.rx.getNData(HEADER_SIZE)
     header_info = parse_header(header)
     payload_size = header_info["payload_size"]
     payload = b''
-
     if payload_size > 0:
         payload = com1.rx.getNData(payload_size)
-
     eop = com1.rx.getNData(len(EOP))
-
     packet = header + payload + eop
+    return packet, header_info, payload
 
+def receive_packet_timeout(com1):
+    start_time = time.time()
+    # Espera o header chegar
+    while com1.rx.getBufferLen() < HEADER_SIZE:
+        if time.time() - start_time >= TIMEOUT:
+            return None, None, None
+        time.sleep(0.05)
+    header = com1.rx.getNData(HEADER_SIZE)
+    header_info = parse_header(header)
+    payload_size = header_info["payload_size"]
+    # Espera o payload chegar
+    while com1.rx.getBufferLen() < payload_size:
+        if time.time() - start_time >= TIMEOUT:
+            com1.rx.clearBuffer()
+            return None, None, None
+        time.sleep(0.05)
+    payload = b''
+    if payload_size > 0:
+        payload = com1.rx.getNData(payload_size)
+    # Espera o EOP
+    while com1.rx.getBufferLen() < len(EOP):
+        if time.time() - start_time >= TIMEOUT:
+            com1.rx.clearBuffer()
+            return None, None, None
+        time.sleep(0.05)
+    eop = com1.rx.getNData(len(EOP))
+    packet = header + payload + eop
     return packet, header_info, payload
 
 def get_available_files():
     files = os.listdir(SERVER_FOLDER)
     available_files = []
-
     for file_name in files:
         path = os.path.join(SERVER_FOLDER, file_name)
         if os.path.isfile(path):
             available_files.append(file_name)
-
     return available_files
 
 def build_file_list_payload(files):
@@ -58,12 +67,9 @@ def build_file_list_payload(files):
         text += ":"
         text += files[i]
         text += "\n"
-
     return text.encode()
 
-# ---------------------------------------------------
 # MAIN
-# ---------------------------------------------------
 
 def main():
     try:
@@ -80,9 +86,7 @@ def main():
         com1.rx.clearBuffer()
         time.sleep(.1)
 
-        # ===================================================
         # LISTA DE ARQUIVOS DISPONÍVEIS
-        # ===================================================
         available_files = get_available_files()
 
         print()
@@ -91,9 +95,7 @@ def main():
         for i in range(len(available_files)):
             print("[" + str(i + 1) + "]", available_files[i])
 
-        # ===================================================
         # HANDSHAKE
-        # ===================================================
         print()
         print("----------------------------------------")
         print("Aguardando HANDSHAKE...")
@@ -113,9 +115,7 @@ def main():
             com1.disable()
             return
 
-        # ===================================================
         # ESCOLHA DOS ARQUIVOS
-        # ===================================================
         selected_files = []
         selecting = True
 
@@ -127,9 +127,7 @@ def main():
             packet, header, payload = receive_packet(com1)
             msg_type = header["msg_type"]
 
-            # -----------------------------------------------
             # CLIENTE ESCOLHEU UM ARQUIVO
-            # -----------------------------------------------
             if msg_type == FILE_REQUEST:
                 file_id = header["file_id"]
                 if file_id >= 1 and file_id <= len(available_files):
@@ -149,17 +147,13 @@ def main():
                 else:
                     print("Cliente solicitou um ID inválido:", file_id)
 
-            # -----------------------------------------------
             # CLIENTE TERMINOU A ESCOLHA
-            # -----------------------------------------------
             elif msg_type == FINISH_SELECTION:
                 print()
                 print("Cliente terminou a seleção.")
                 selecting = False
 
-        # ===================================================
         # MOSTRA ARQUIVOS SELECIONADOS
-        # ===================================================
         print()
         print("----------------------------------------")
         print("Arquivos selecionados:")
@@ -167,9 +161,7 @@ def main():
         for file_name in selected_files:
             print("-", file_name)
 
-        # ===================================================
         # PREPARAÇÃO DOS ARQUIVOS
-        # ===================================================
         files_to_send = []
         file_id = 1
         for file_name in selected_files:
@@ -192,9 +184,7 @@ def main():
             print("Quantidade de pacotes:", len(packets))
             file_id += 1
 
-        # ===================================================
         # AVISA QUE A TRANSMISSÃO VAI COMEÇAR
-        # ===================================================
         print()
         print("----------------------------------------")
         print("Iniciando transmissão...")
@@ -203,10 +193,7 @@ def main():
         start_packet = build_packet(msg_type=START_TRANSFER)
         send_packet(com1, start_packet)
 
-        # ===================================================
         # TRANSMISSÃO INTERCALADA
-        # ===================================================
-
         transmitting = True
         while transmitting:
             transmitting = False
@@ -222,9 +209,7 @@ def main():
                     packet_number = next_packet + 1
                     total_packets = len(packets)
 
-                    # ---------------------------------------
                     # MONTA PACOTE DE DADOS
-                    # ---------------------------------------
                     packet = build_packet(msg_type=DATA, payload=payload, file_id=file_info["id"], packet_number=packet_number, total_packets=total_packets)
                     print()
                     print("Enviando arquivo", file_info["id"], "-", file_info["name"])
@@ -232,32 +217,51 @@ def main():
                     print("Payload:", len(payload), "bytes")
                     send_packet(com1, packet)
 
-                    # ---------------------------------------
                     # ESPERA ACK
-                    # ---------------------------------------
                     print("Aguardando ACK...")
-                    ack_packet, ack_header, ack_payload = receive_packet(com1)
-                    if ack_header["msg_type"] == ACK:
-                        if (ack_header["file_id"] == file_info["id"] and ack_header["ack_number"] == packet_number):
-                            print("ACK recebido:", "arquivo", file_info["id"], "pacote", packet_number)
-                            file_info["next_packet"] += 1
-                        else:
-                            print("ACK recebido, mas não corresponde ao pacote enviado.")
-                    else:
-                        print("Servidor esperava ACK, mas recebeu:", message_name(ack_header["msg_type"]))
+                    ack_recebido = False
+                    tentativa = 1
+                    while tentativa <= MAX_RETRIES and not ack_recebido:
+                        ack_packet, ack_header, ack_payload = receive_packet_timeout(com1)
 
-        # ===================================================
+                        # TIMEOUT
+                        if ack_header is None:
+                            print()
+                            print("[TIMEOUT] ACK não recebido.")
+                            print("Retransmitindo pacote...")
+                            send_packet(com1, packet)
+                            tentativa += 1
+                            continue
+
+                        # RECEBEU ALGUMA COISA
+                        if ack_header["msg_type"] == ACK:
+                            if (ack_header["file_id"] == file_info["id"] and ack_header["ack_number"] == packet_number):
+                                print()
+                                print("ACK recebido:", "arquivo",file_info["id"],"pacote",packet_number)
+                                ack_recebido = True
+                                file_info["next_packet"] += 1
+                            else:
+                                print("ACK recebido, mas não corresponde","ao pacote enviado.")
+                                tentativa += 1
+                        else:
+                            print("Servidor esperava ACK, mas recebeu:", message_name(ack_header["msg_type"]))
+                            tentativa += 1
+
+                    # VERIFICA SE ESGOTOU AS TENTATIVAS
+                    if not ack_recebido:
+                        print()
+                        print("Não foi possível receber o ACK.")
+                        print("Número máximo de tentativas atingido.")
+                        break
+                    
         # FINALIZA CADA ARQUIVO
-        # ===================================================
         for file_info in files_to_send:
             end_file_packet = build_packet(msg_type=END_FILE, file_id=file_info["id"])
             send_packet(com1, end_file_packet)
             print()
             print("Arquivo", file_info["name"], "transmitido completamente.")
 
-        # ===================================================
         # FINALIZA TODA A TRANSMISSÃO
-        # ===================================================
         end_packet = build_packet(msg_type=END_TRANSFER)
 
         send_packet(com1, end_packet)
