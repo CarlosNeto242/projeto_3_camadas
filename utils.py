@@ -1,3 +1,4 @@
+import time
 
 HEADER_SIZE = 10
 MAX_PAYLOAD_SIZE = 100
@@ -136,3 +137,8 @@ def message_name(msg_type):
         END_FILE: "END_FILE",
         END_TRANSFER: "END_TRANSFER",}
     return names.get(msg_type, f"UNKNOWN({msg_type})")
+
+def send_packet(com1, packet):
+    com1.sendData(packet)
+    while com1.tx.getIsBussy():
+        time.sleep(0.05)
