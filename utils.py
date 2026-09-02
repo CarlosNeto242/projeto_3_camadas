@@ -11,33 +11,31 @@ EOP = b'\xAA\xBB\xCC\xDD'
 # cliente pergunta se o servidor está vivo e solicita a lista
 # de arquivos disponíveis.
 HANDSHAKE = 1
-
 # Servidor envia a lista de arquivos disponíveis.
 FILE_LIST = 2
-
 # Cliente solicita um arquivo.
 FILE_REQUEST = 3
-
 # Servidor confirma o arquivo escolhido.
 FILE_SELECTED = 4
-
 # Cliente informa que terminou de escolher arquivos.
 FINISH_SELECTION = 5
-
 # Servidor avisa que vai começar a transmissão.
 START_TRANSFER = 6
-
 # Pacote contendo dados de um arquivo.
 DATA = 7
-
 # Confirmação de recebimento de um pacote.
 ACK = 8
-
 # Indica que um arquivo terminou.
 END_FILE = 9
-
 # Indica que todos os arquivos terminaram.
 END_TRANSFER = 10
+
+# COMANDOS DE CONTROLE
+NORMAL = 0
+PAUSE = 1
+CONTINUE = 2
+RESTART = 3
+ABORT = 4
 
 
 # ============================================================
