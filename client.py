@@ -321,6 +321,12 @@ def main():
                 print("Mensagem inesperada:", message_name(msg_type))
 
         # SALVA OS ARQUIVOS
+        if transmission_aborted:
+            print()
+            print("Os arquivos incompletos não serão salvos.")
+            com1.disable()
+            return
+        
         print()
         print("========================================")
         print("       SALVANDO ARQUIVOS")

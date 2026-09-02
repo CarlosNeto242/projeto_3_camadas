@@ -195,7 +195,9 @@ def main():
 
         # TRANSMISSÃO INTERCALADA
         transmitting = True
-        while transmitting:
+        transmitting_aborted = False
+
+        while transmitting and not transmitting_aborted:
             transmitting = False
             # Percorre todos os arquivos uma vez
             for file_info in files_to_send:
@@ -240,6 +242,55 @@ def main():
                                 print("ACK recebido:", "arquivo",file_info["id"],"pacote",packet_number)
                                 ack_recebido = True
                                 file_info["next_packet"] += 1
+
+                                # PAUSA
+                                if ack_header["control"] == PAUSE:
+                                    print()
+                                    print("========================================")
+                                    print("        TRANSMISSÃO PAUSADA")
+                                    print("========================================")
+                                    print("Aguardando comando do cliente...")
+                                    paused = True
+                                    while paused:
+                                        command_packet, command_header, command_payload = receive_packet(com1)
+                                        # CONTINUAR
+                                        if command_header["control"] == CONTINUE:
+                                            paused = False
+                                            print()
+                                            print("========================================")
+                                            print("       TRANSMISSÃO CONTINUADA")
+                                            print("========================================")
+                                        elif command_header["control"] == RESTART:
+                                            print()
+                                            print("========================================")
+                                            print("       REINICIANDO TRANSMISSÃO")
+                                            print("========================================")
+                                            for arquivo in files_to_send:
+                                                arquivo["next_packet"] = 0
+                                            paused = False
+                                        elif command_header["control"] == ABORT:
+                                            print()
+                                            print("========================================")
+                                            print("       TRANSMISSÃO ABORTADA")
+                                            print("========================================")
+                                            paused = False
+                                            transmitting_aborted = True
+
+                                elif ack_header["control"] == RESTART:
+                                    print()
+                                    print("========================================")
+                                    print("       REINICIANDO TRANSMISSÃO")
+                                    print("========================================")
+                                    for arquivo in files_to_send:
+                                        arquivo["next_packet"] = 0
+
+                                elif ack_header["control"] == ABORT:
+                                    print()
+                                    print("========================================")
+                                    print("       TRANSMISSÃO ABORTADA")
+                                    print("========================================")
+                                    transmission_aborted = True
+
                             else:
                                 print("ACK recebido, mas não corresponde","ao pacote enviado.")
                                 tentativa += 1
@@ -247,24 +298,31 @@ def main():
                             print("Servidor esperava ACK, mas recebeu:", message_name(ack_header["msg_type"]))
                             tentativa += 1
 
+                        if transmitting_aborted:
+                            break
+
                     # VERIFICA SE ESGOTOU AS TENTATIVAS
                     if not ack_recebido:
                         print()
                         print("Não foi possível receber o ACK.")
                         print("Número máximo de tentativas atingido.")
                         break
-                    
-        # FINALIZA CADA ARQUIVO
-        for file_info in files_to_send:
-            end_file_packet = build_packet(msg_type=END_FILE, file_id=file_info["id"])
-            send_packet(com1, end_file_packet)
-            print()
-            print("Arquivo", file_info["name"], "transmitido completamente.")
+
+            if transmission_aborted:
+                break
+
+        if not transmitting_aborted:
+            # FINALIZA CADA ARQUIVO
+            for file_info in files_to_send:
+                end_file_packet = build_packet(msg_type=END_FILE, file_id=file_info["id"])
+                send_packet(com1, end_file_packet)
+                print()
+                print("Arquivo", file_info["name"], "transmitido completamente.")
 
         # FINALIZA TODA A TRANSMISSÃO
-        end_packet = build_packet(msg_type=END_TRANSFER)
+            end_packet = build_packet(msg_type=END_TRANSFER)
+            send_packet(com1, end_packet)
 
-        send_packet(com1, end_packet)
         print()
         print("========================================")
         print("       TRANSMISSÃO FINALIZADA")
