@@ -289,7 +289,7 @@ def main():
                                     print("========================================")
                                     print("       TRANSMISSÃO ABORTADA")
                                     print("========================================")
-                                    transmission_aborted = True
+                                    transmitting_aborted = True
 
                             else:
                                 print("ACK recebido, mas não corresponde","ao pacote enviado.")
@@ -298,8 +298,8 @@ def main():
                             print("Servidor esperava ACK, mas recebeu:", message_name(ack_header["msg_type"]))
                             tentativa += 1
 
-                        if transmitting_aborted:
-                            break
+                    if transmitting_aborted:
+                        break
 
                     # VERIFICA SE ESGOTOU AS TENTATIVAS
                     if not ack_recebido:
@@ -308,7 +308,7 @@ def main():
                         print("Número máximo de tentativas atingido.")
                         break
 
-            if transmission_aborted:
+            if transmitting_aborted:
                 break
 
         if not transmitting_aborted:
